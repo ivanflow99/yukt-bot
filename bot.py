@@ -13,9 +13,6 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 ADMIN_IDS = [5389107276, 775541480, 775541484]
 SHEET_ID = "1JPsviN-x-9hHed-z3VRUalFZF-CdX0ICUoTZt6wKCw4"
 
-# Диагностическая метка сервера (поможет понять, кто именно дублирует сообщения)
-SERVER_NAME = os.environ.get("SERVER_NAME", "Локальный ПК (или зависший процесс)")
-
 PHONE_REGEX = re.compile(r'[\+7|8][\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}')
 CHOOSE_ACTION, GET_TECHNIKA, GET_ZAPCHAST, GET_KONTAKT, CONFIRM = range(5)
 
@@ -84,8 +81,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🚜 Погрузчики и другая спецтехника\n\n"
         "📦 Склад в Самаре — отгрузка день в день\n"
         "🚚 Доставка по всей России\n\n"
-        "⬇️ *Используйте кнопки внизу экрана* ⬇️"
-        f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+        "⬇️ *Используйте кнопки внизу экрана* ⬇️",
         parse_mode="Markdown",
         reply_markup=main_keyboard()
     )
@@ -96,16 +92,14 @@ async def choose_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['tip'] = text
     if text == "📍 Контакты":
         await update.message.reply_text(
-            f"*ЮКТ Самара — запчасти на спецтехнику*\n\n{CONTACTS}"
-            f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+            f"*ЮКТ Самара — запчасти на спецтехнику*\n\n{CONTACTS}",
             parse_mode="Markdown",
             reply_markup=main_keyboard()
         )
         return CHOOSE_ACTION
     if text == "📞 Перезвонить мне":
         await update.message.reply_text(
-            "📞 Укажите ваш номер телефона — перезвоним в рабочее время (9:00–18:00):"
-            f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+            "📞 Укажите ваш номер телефона — перезвоним в рабочее время (9:00–18:00):",
             reply_markup=ReplyKeyboardMarkup(
                 [[KeyboardButton("📱 Поделиться номером", request_contact=True)]],
                 resize_keyboard=True,
@@ -117,8 +111,7 @@ async def choose_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Хорошо, оформляем заявку!\n\n"
         "*Шаг 1 из 3*\n"
         "🚜 Укажите марку и модель техники:\n\n"
-        "_Примеры: Komatsu PC200, Hitachi ZX200, Cat 320, Doosan DX225_"
-        f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+        "_Примеры: Komatsu PC200, Hitachi ZX200, Cat 320, Doosan DX225_",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardRemove()
     )
@@ -127,8 +120,7 @@ async def choose_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_technika(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(update.message.text.strip()) < 3:
         await update.message.reply_text(
-            "⚠️ Укажите подробнее.\n_Например: Komatsu PC200_"
-            f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+            "⚠️ Укажите подробнее.\n_Например: Komatsu PC200_",
             parse_mode="Markdown"
         )
         return GET_TECHNIKA
@@ -137,25 +129,20 @@ async def get_technika(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "*Шаг 2 из 3*\n"
         "🔧 Какая запчасть нужна?\n\n"
         "_Укажите название или артикул:\nфильтр масляный, 6736-51-5141, гидронасос..._\n\n"
-        "Если не знаете артикул — опишите своими словами."
-        f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+        "Если не знаете артикул — опишите своими словами.",
         parse_mode="Markdown"
     )
     return GET_ZAPCHAST
 
 async def get_zapchast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(update.message.text.strip()) < 2:
-        await update.message.reply_text(
-            "⚠️ Опишите запчасть подробнее."
-            f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_"
-        )
+        await update.message.reply_text("⚠️ Опишите запчасть подробнее.")
         return GET_ZAPCHAST
     context.user_data['zapchast'] = update.message.text.strip()
     await update.message.reply_text(
         "*Шаг 3 из 3*\n"
         "📞 Укажите номер телефона для связи:\n\n"
-        "Нажмите кнопку ниже 👇 или напишите номер вручную"
-        f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+        "Нажмите кнопку ниже 👇 или напишите номер вручную",
         parse_mode="Markdown",
         reply_markup=ReplyKeyboardMarkup(
             [[KeyboardButton("📱 Поделиться номером", request_contact=True)]],
@@ -174,8 +161,7 @@ async def get_kontakt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         raw = update.message.text.strip()
         if not PHONE_REGEX.search(raw) and len(raw) < 6:
             await update.message.reply_text(
-                "⚠️ Введите номер в формате *+7 917 123-45-67*\nили нажмите кнопку 👇"
-                f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+                "⚠️ Введите номер в формате *+7 917 123-45-67*\nили нажмите кнопку 👇",
                 parse_mode="Markdown",
                 reply_markup=ReplyKeyboardMarkup(
                     [[KeyboardButton("📱 Поделиться номером", request_contact=True)]],
@@ -202,8 +188,7 @@ async def get_kontakt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🚜 Техника: *{technika}*\n"
         f"🔧 Запчасть: *{zapchast}*\n"
         f"📞 Телефон: *{phone}*\n\n"
-        "Всё верно? Нажмите кнопку ниже 👇"
-        f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+        "Всё верно? Нажмите кнопку ниже 👇",
         parse_mode="Markdown",
         reply_markup=keyboard
     )
@@ -213,11 +198,7 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.data == "restart":
-        await query.message.reply_text(
-            "Хорошо, начнём заново 👇"
-            f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
-            reply_markup=main_keyboard()
-        )
+        await query.message.reply_text("Хорошо, начнём заново 👇", reply_markup=main_keyboard())
         context.user_data.clear()
         return CHOOSE_ACTION
     user = query.from_user
@@ -243,8 +224,7 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🔧 {zapchast}\n"
         f"📞 {kontakt}\n\n"
         "Наш менеджер свяжется с вами в рабочее время.\n\n"
-        f"По срочным вопросам:\n{CONTACTS}"
-        f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+        f"По срочным вопросам:\n{CONTACTS}",
         parse_mode="Markdown",
         reply_markup=main_keyboard()
     )
@@ -280,8 +260,7 @@ async def send_zayavka(update: Update, context: ContextTypes.DEFAULT_TYPE):
     })
     await update.message.reply_text(
         "✅ *Принято!*\n\nПерезвоним в рабочее время (9:00–18:00).\n\n"
-        f"По срочным вопросам:\n{CONTACTS}"
-        f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+        f"По срочным вопросам:\n{CONTACTS}",
         parse_mode="Markdown",
         reply_markup=main_keyboard()
     )
@@ -302,19 +281,14 @@ async def send_zayavka(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "⬇️ Используйте кнопки внизу экрана ⬇️"
-        f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
+        "⬇️ Используйте кнопки внизу экрана ⬇️",
         reply_markup=main_keyboard()
     )
     return CHOOSE_ACTION
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text(
-        "Отменено."
-        f"\n\n⚙️ _[Сервер: {SERVER_NAME}]_",
-        reply_markup=main_keyboard()
-    )
+    await update.message.reply_text("Отменено.", reply_markup=main_keyboard())
     return CHOOSE_ACTION
 
 def main():
