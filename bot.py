@@ -10,7 +10,7 @@ from google.oauth2.service_account import Credentials
 
 # Загружаем токен из переменных окружения для безопасности
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
-ADMIN_IDS = [5389107276, 775541480, 775541484]
+ADMIN_IDS = [5389107276, 1474007444, 775541484]
 SHEET_ID = "1JPsviN-x-9hHed-z3VRUalFZF-CdX0ICUoTZt6wKCw4"
 
 PHONE_REGEX = re.compile(r'[\+7|8][\s\-]?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}')
