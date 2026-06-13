@@ -8,6 +8,9 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import gspread
 from google.oauth2.service_account import Credentials
 
+import ai_search
+from sheet_formatting import setup_sheet_appearance, HEADERS
+
 # Загружаем токен из переменных окружения для безопасности
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 ADMIN_IDS = [5389107276, 1474007444, 471103872]
@@ -27,7 +30,15 @@ CONTACTS = (
     "🕐 Работаем пн–пт, 9:00–18:00"
 )
 
+_sheet_cache = None
+
+
 def get_sheet():
+    """Возвращает объект листа. Кэширует подключение и один раз
+    применяет оформление при первом успешном подключении."""
+    global _sheet_cache
+    if _sheet_cache is not None:
+        return _sheet_cache
     try:
         creds_json = os.environ.get("GOOGLE_CREDENTIALS", "")
         if not creds_json:
@@ -39,12 +50,18 @@ def get_sheet():
         ]
         creds = Credentials.from_service_account_info(creds_data, scopes=scopes)
         client = gspread.authorize(creds)
-        return client.open_by_key(SHEET_ID).sheet1
+        sheet = client.open_by_key(SHEET_ID).sheet1
+        setup_sheet_appearance(sheet)
+        _sheet_cache = sheet
+        return sheet
     except Exception as e:
         logger.error(f"Ошибка Google Sheets: {e}")
         return None
 
+
 def save_to_sheet(data: dict):
+    """Сохраняет заявку. data может содержать ключ 'ai_note' —
+    текстовый результат AI-подбора для колонки 'AI-подбор'."""
     try:
         sheet = get_sheet()
         if not sheet:
@@ -58,7 +75,8 @@ def save_to_sheet(data: dict):
             data.get("tip", "—"),
             data.get("technika", "—"),
             data.get("zapchast", "—"),
-            "🆕 Новая"
+            "🆕 Новая",
+            data.get("ai_note", "—"),
         ]
         sheet.append_row(row)
         return True
@@ -66,11 +84,13 @@ def save_to_sheet(data: dict):
         logger.error(f"Ошибка записи: {e}")
         return False
 
+
 def main_keyboard():
     return ReplyKeyboardMarkup([
         [KeyboardButton("📋 Оставить заявку")],
         [KeyboardButton("📞 Перезвонить мне"), KeyboardButton("📍 Контакты")],
     ], resize_keyboard=True)
+
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -86,6 +106,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=main_keyboard()
     )
     return CHOOSE_ACTION
+
 
 async def choose_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -117,6 +138,7 @@ async def choose_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return GET_TECHNIKA
 
+
 async def get_technika(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(update.message.text.strip()) < 3:
         await update.message.reply_text(
@@ -133,6 +155,7 @@ async def get_technika(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="Markdown"
     )
     return GET_ZAPCHAST
+
 
 async def get_zapchast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(update.message.text.strip()) < 2:
@@ -151,6 +174,7 @@ async def get_zapchast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     )
     return GET_KONTAKT
+
 
 async def get_kontakt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.contact:
@@ -176,7 +200,7 @@ async def get_kontakt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['technika'] = '—'
         context.user_data['zapchast'] = 'Просьба перезвонить'
         return await send_zayavka(update, context)
-    
+
     technika = context.user_data.get('technika', '—')
     zapchast = context.user_data.get('zapchast', '—')
     keyboard = InlineKeyboardMarkup([
@@ -194,6 +218,7 @@ async def get_kontakt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return CONFIRM
 
+
 async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -208,16 +233,24 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     kontakt = context.user_data.get('kontakt', '—')
     username = f"@{user.username}" if user.username else "без username"
     name = user.first_name or "Без имени"
-    
+
+    # --- AI-подбор по каталогу ---
+    ai_result = ai_search.find_matches(technika, zapchast)
+    ai_text = ai_search.format_matches_for_admin(ai_result)
+    ai_sheet_note = "; ".join(
+        f"{m['name']} ({m['price']}₽)" for m in ai_result.get("matches", [])
+    ) or "—"
+
     saved = save_to_sheet({
         "name": name,
         "username": username,
         "kontakt": kontakt,
         "tip": tip,
         "technika": technika,
-        "zapchast": zapchast
+        "zapchast": zapchast,
+        "ai_note": ai_sheet_note,
     })
-    
+
     await query.message.reply_text(
         "✅ *Заявка принята!*\n\n"
         f"🚜 {technika}\n"
@@ -235,6 +268,7 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📞 {kontakt}\n\n"
         f"🚜 Техника: {technika}\n"
         f"🔧 Запчасть: {zapchast}\n\n"
+        f"{ai_text}\n\n"
         f"{sheets_icon} Таблица: https://docs.google.com/spreadsheets/d/{SHEET_ID}"
     )
     for admin_id in ADMIN_IDS:
@@ -244,6 +278,7 @@ async def confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Ошибка {admin_id}: {e}")
     context.user_data.clear()
     return CHOOSE_ACTION
+
 
 async def send_zayavka(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -256,7 +291,8 @@ async def send_zayavka(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "kontakt": kontakt,
         "tip": "📞 Перезвонить",
         "technika": "—",
-        "zapchast": "Просьба перезвонить"
+        "zapchast": "Просьба перезвонить",
+        "ai_note": "—",
     })
     await update.message.reply_text(
         "✅ *Принято!*\n\nПерезвоним в рабочее время (9:00–18:00).\n\n"
@@ -279,6 +315,7 @@ async def send_zayavka(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     return CHOOSE_ACTION
 
+
 async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "⬇️ Используйте кнопки внизу экрана ⬇️",
@@ -286,10 +323,12 @@ async def unknown(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return CHOOSE_ACTION
 
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await update.message.reply_text("Отменено.", reply_markup=main_keyboard())
     return CHOOSE_ACTION
+
 
 def main():
     if not BOT_TOKEN:
@@ -319,6 +358,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown))
     logger.info("Бот ЮКТ Самара запущен!")
     app.run_polling(drop_pending_updates=True)
+
 
 if __name__ == "__main__":
     main()
